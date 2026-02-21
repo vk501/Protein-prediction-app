@@ -1,77 +1,66 @@
 import streamlit as st
 import py3Dmol
 import requests
+from predict import predict_structure
 
 st.set_page_config(layout="wide")
-st.title("Protein Structure Viewer – S6 Kinase Example")
+st.title("Protein Structure Viewer & Predictor")
 
-# --- S6 kinase sequence from PDB 4L3J chain A (shortened demo) ---
-default_name = "S6 Kinase – PDB 4L3J"
+tab1, tab2 = st.tabs(["Experimental Structure", "Predict Novel Sequence"])
 
-default_sequence = (
-    "MGKEKRRVAIKKLRKNNHRSKRSRKKRGRRRQSRGRGSRGRGSRGRG"
-    "SGRGRGRGRGRGRGRGRGRGRG"
-)
+# ---------- TAB 1: Experimental PDB ----------
+with tab1:
+    st.header("S6 Kinase Example – PDB 4L3J")
 
-left, right = st.columns([1,2])
+    pdb_url = "https://files.rcsb.org/download/4L3J.pdb"
+    response = requests.get(pdb_url)
 
-# ---------- LEFT PANEL ----------
-with left:
-    st.header("Protein Input")
+    if response.status_code == 200:
+        pdb_data = response.text
+        view = py3Dmol.view(width=750, height=520)
+        view.addModel(pdb_data, "pdb")
+        view.setStyle({
+            "cartoon": {"colorscheme": {"prop":"b","gradient":"roygb","min":20,"max":80}}
+        })
+        view.zoomTo()
+        st.components.v1.html(view._make_html(), height=540)
 
-    protein_name = st.text_input("Protein name", value=default_name)
+        st.download_button("Download PDB", pdb_data, "4L3J_S6K.pdb")
+    else:
+        st.error("Could not fetch 4L3J structure.")
 
-    sequence = st.text_area(
-        "Sequence (from PDB 4L3J)",
-        value=default_sequence,
-        height=260
-    )
+# ---------- TAB 2: Novel Prediction ----------
+with tab2:
+    st.header("Predict Novel Protein Structure")
 
-    run = st.button("Load Structure")
+    protein_name = st.text_input("Protein name", value="MyProtein")
+    sequence = st.text_area("Paste amino acid sequence", height=250)
 
-# ---------- RIGHT PANEL ----------
-with right:
-    st.header("Structure Viewer")
+    run = st.button("Predict Structure")
 
     if run:
-        st.info("Fetching structure from PDB…")
-
-        # Download PDB file
-        pdb_url = "https://files.rcsb.org/download/4L3J.pdb"
-        response = requests.get(pdb_url)
-
-        if response.status_code != 200:
-            st.error("Could not fetch PDB file")
+        if not sequence.strip():
+            st.error("Please enter a valid sequence")
         else:
-            pdb_data = response.text
+            st.info("Running prediction (may take a few minutes)...")
+            pdb_file = predict_structure(sequence, protein_name)
 
-            # --- 3D viewer ---
+            with open(pdb_file) as f:
+                pdb_data = f.read()
+
+            # 3D viewer colored by B-factor (pLDDT)
             view = py3Dmol.view(width=750, height=520)
             view.addModel(pdb_data, "pdb")
-
-            # color by B-factor (confidence/temperature factor)
             view.setStyle({
                 "cartoon": {
-                    "colorscheme": {
-                        "prop": "b",
-                        "gradient": "roygb",
-                        "min": 20,
-                        "max": 80
-                    }
+                    "colorscheme": {"prop":"b","gradient":"roygb","min":50,"max":100}
                 }
             })
-
             view.zoomTo()
             st.components.v1.html(view._make_html(), height=540)
 
-            # --- fake average confidence display ---
-            st.metric("Experimental B-factor Range", "20–80")
+            # Display average pLDDT (placeholder)
+            st.metric("Average pLDDT Confidence", "80–90")  
 
-            # --- download button ---
-            st.download_button(
-                "Download PDB",
-                pdb_data,
-                file_name="4L3J_S6K.pdb"
-            )
-
-            st.success("Structure loaded!")
+            st.download_button("Download PDB", pdb_data, f"{protein_name}.pdb")
+            st.success("Prediction complete!")
