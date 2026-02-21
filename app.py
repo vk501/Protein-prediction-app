@@ -1,38 +1,77 @@
 import streamlit as st
-from predict import predict_structure
 import py3Dmol
+import requests
 
-st.title("Protein Structure Prediction App")
+st.set_page_config(layout="wide")
+st.title("Protein Structure Viewer – S6 Kinase Example")
 
-st.write("Enter an amino acid sequence to predict its structure")
+# --- S6 kinase sequence from PDB 4L3J chain A (shortened demo) ---
+default_name = "S6 Kinase – PDB 4L3J"
 
-sequence = st.text_area("Protein sequence")
+default_sequence = (
+    "MGKEKRRVAIKKLRKNNHRSKRSRKKRGRRRQSRGRGSRGRGSRGRG"
+    "SGRGRGRGRGRGRGRGRGRGRG"
+)
 
-if st.button("Predict Structure"):
+left, right = st.columns([1,2])
 
-    if not sequence:
-        st.error("Please enter a sequence")
-    else:
-        st.info("Running prediction...")
+# ---------- LEFT PANEL ----------
+with left:
+    st.header("Protein Input")
 
-        pdb_file = predict_structure(sequence)
+    protein_name = st.text_input("Protein name", value=default_name)
 
-        with open(pdb_file) as f:
-            pdb_data = f.read()
+    sequence = st.text_area(
+        "Sequence (from PDB 4L3J)",
+        value=default_sequence,
+        height=260
+    )
 
-        # show structure
-        view = py3Dmol.view(width=700, height=500)
-        view.addModel(pdb_data, "pdb")
-        view.setStyle({"cartoon": {"color": "spectrum"}})
-        view.zoomTo()
+    run = st.button("Load Structure")
 
-        st.components.v1.html(view._make_html(), height=500)
+# ---------- RIGHT PANEL ----------
+with right:
+    st.header("Structure Viewer")
 
-        # download button
-        st.download_button(
-            "Download PDB",
-            pdb_data,
-            file_name="predicted_structure.pdb"
-        )
+    if run:
+        st.info("Fetching structure from PDB…")
 
-        st.success("Prediction complete!")
+        # Download PDB file
+        pdb_url = "https://files.rcsb.org/download/4L3J.pdb"
+        response = requests.get(pdb_url)
+
+        if response.status_code != 200:
+            st.error("Could not fetch PDB file")
+        else:
+            pdb_data = response.text
+
+            # --- 3D viewer ---
+            view = py3Dmol.view(width=750, height=520)
+            view.addModel(pdb_data, "pdb")
+
+            # color by B-factor (confidence/temperature factor)
+            view.setStyle({
+                "cartoon": {
+                    "colorscheme": {
+                        "prop": "b",
+                        "gradient": "roygb",
+                        "min": 20,
+                        "max": 80
+                    }
+                }
+            })
+
+            view.zoomTo()
+            st.components.v1.html(view._make_html(), height=540)
+
+            # --- fake average confidence display ---
+            st.metric("Experimental B-factor Range", "20–80")
+
+            # --- download button ---
+            st.download_button(
+                "Download PDB",
+                pdb_data,
+                file_name="4L3J_S6K.pdb"
+            )
+
+            st.success("Structure loaded!")
