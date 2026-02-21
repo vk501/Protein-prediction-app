@@ -1,25 +1,15 @@
-from colabfold.batch import run
-from pathlib import Path
+import streamlit as st
+from urllib.parse import quote
 
-def predict_structure(sequence, jobname="protein"):
+st.title("Predict Novel Protein Structure with ColabFold")
 
-    # --- Save sequence to FASTA ---
-    Path("results").mkdir(exist_ok=True)
-    fasta_file = f"results/{jobname}.fasta"
-    with open(fasta_file, "w") as f:
-        f.write(f">{jobname}\n{sequence}")
+sequence = st.text_area("Paste your sequence here")
 
-    # --- Run ColabFold ---
-    run(
-        input_fasta_path=fasta_file,
-        result_dir="results",
-        model_type="alphafold2_ptm",
-        num_models=1,
-        num_recycles=3,
-        use_gpu=True,   # if GPU available
-        verbose=True
-    )
-
-    # ColabFold outputs unrelaxed PDBs
-    pdb_file = f"results/{jobname}/{jobname}_unrelaxed_rank_001.pdb"
-    return pdb_file
+if st.button("Run in ColabFold"):
+    if not sequence.strip():
+        st.error("Enter a sequence first")
+    else:
+        # Encode sequence for URL
+        encoded_seq = quote(sequence)
+        colab_url = f"https://colab.research.google.com/github/sokrypton/ColabFold/blob/main/AlphaFold2_mmseqs2.ipynb#scrollTo=0&sequence={encoded_seq}"
+        st.markdown(f"[Click here to run in ColabFold]({colab_url})", unsafe_allow_html=True)
